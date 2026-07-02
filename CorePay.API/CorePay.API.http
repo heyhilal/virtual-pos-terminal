@@ -1,0 +1,6 @@
+@CorePay.API_HostAddress = http://localhost:5042
+
+GET {{CorePay.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

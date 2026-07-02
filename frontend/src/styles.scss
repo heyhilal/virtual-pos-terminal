@@ -1,0 +1,16 @@
+/* You can add global styles to this file, and also import other style files */
+
+html, body { height: 100%; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+/* 1) Snack-bar'ı taşıyan ana overlay yapısını en üste zorla çıkartıyoruz */
+.cdk-overlay-container, 
+.cdk-global-overlay-wrapper {
+  z-index: 999999 !important;
+}
+
+/* 2) Snack-bar kutusunun kendisini görünür kılmak için ekstra güvenlik katmanı */
+.mat-mdc-snack-bar-container, 
+.mat-snack-bar-container {
+  z-index: 1000000 !important;
+}
