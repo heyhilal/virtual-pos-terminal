@@ -1,76 +1,66 @@
-💳 Virtual POS Terminal
-A modern Virtual POS (Payment System) built with .NET 8 Web API and Angular.
-The project simulates payment processing with a clean layered architecture, PostgreSQL database, and structured backend design principles.
+# 💳 Virtual POS Terminal
 
+A simple Virtual POS system built with .NET 8 Web API and Angular. It simulates payment processing with a clean backend architecture and PostgreSQL database.
 
-🚀 Project Overview
-This project is a backend-focused virtual payment system that handles payment requests, validates input, processes transactions, and returns structured API responses.
-It is designed as a scalable RESTful API with a modern frontend interface.
+---
 
+## ✨ Features
 
-✨ Features
-Payment request processing
-DTO-based request/response structure
-Input validation (FluentValidation)
-Global exception handling middleware
-RESTful API architecture
-Angular-based payment form UI
-PostgreSQL database integration
-Clean and scalable project structure
+- Payment request processing  
+- DTO-based API structure  
+- Input validation  
+- Global exception handling  
+- RESTful API design  
+- Angular payment form UI  
+- PostgreSQL database integration  
 
+---
 
-🛠 Tech Stack
-Backend
-.NET 8 (LTS)
-ASP.NET Core Web API
-Entity Framework Core 8
-Npgsql (PostgreSQL provider)
-FluentValidation
-Custom Middleware (Global Exception Handling)
-Frontend
-Angular
-TypeScript
-HTML5 / SCSS
-Database
-PostgreSQL
-Dev Tools
-Git & GitHub
-Docker (planned / optional)
-DBeaver
+## 🛠 Tech Stack
 
+**Backend**
+- .NET 8 Web API  
+- Entity Framework Core  
+- FluentValidation  
+- Custom Middleware  
 
-🧱 Architecture
-The project follows a layered architecture approach:
-API Layer (Controllers)
-Application Layer (DTOs, Services, Validation)
-Infrastructure Layer (Database, External Services)
-⚙️ Getting Started
-Clone the repository
-git clone https://github.com/heyhilal/virtual-pos-terminal.git
-Backend setup
+**Frontend**
+- Angular  
+- TypeScript  
+
+**Database**
+- PostgreSQL  
+
+---
+
+## 🧱 Architecture
+
+Controller → API layer  
+Service → Business logic  
+DTO → Data transfer objects  
+Middleware → Error handling  
+
+---
+
+## ⚙️ Run Project
+
+Backend:
 cd CorePay.API
-dotnet restore
 dotnet run
-Frontend setup
+
+Frontend:
 cd frontend
 npm install
 ng serve
 
+---
 
-🗄 Database
-PostgreSQL is used as the main database.
-Connection string is configured in:
-appsettings.json
+## 👩‍💻 Developer
 
-
-📌 API Design
-The API returns structured responses:
-{
-  "success": true,
-  "message": "Payment processed successfully",
-  "data": {}
-}
-
-
-👩‍💻 Developer
 Hilal Aslan
+
+---
+
+## 📄 Note
+
+This project is developed for learning and internship purposes.
