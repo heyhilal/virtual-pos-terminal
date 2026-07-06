@@ -21,21 +21,15 @@ export interface PaymentResponse {
 
 @Injectable({ providedIn: 'root' })
 export class PaymentService {
-  // 🎯 BURAYI TAMAMEN BOŞALTTIK: Artık projede "5214" diye bir şey ASLA kalmadı!
-  private readonly baseUrl = '';
+  
+  private readonly baseUrl = 'http://localhost:5042/api/payments'; 
 
   constructor(private readonly http: HttpClient) {}
 
   processPayment(request: PaymentRequest): Observable<PaymentResponse> {
-    console.log("ALOOO BEN ÇALIŞIYORUM!");
-    // 🎯 DOĞRUDAN SAHTE CEVAP DÖNÜYORUZ: 
-    // Altındaki gizli HTTP kodunu tamamen sildik ki hiçbir yere istek atamasın.
-    return of({
-      success: true,
-      authorizationCode: 'AUTH-' + Math.floor(100000 + Math.random() * 900000),
-      message: 'Ödeme işlemi başarıyla simüle edildi.'
-    }).pipe(
-      delay(1000)
-    );
+    console.log("Şimdi gerçekten Backend'e istek gidiyor!", request);
+    
+   
+    return this.http.post<PaymentResponse>(this.baseUrl, request);
   }
 }
