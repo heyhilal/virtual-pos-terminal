@@ -11,7 +11,6 @@ using Polly.Timeout;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -22,22 +21,18 @@ builder.Services.AddCors(options =>
     });
 });
 
-
 // Db bağlantısı
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
 
 // MediatR
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(ProcessPaymentCommand).Assembly));
 
-
-
 // Retry Policy
 var retryPolicy = HttpPolicyExtensions
     .HandleTransientHttpError()
- .Or<TaskCanceledException>()
+    .Or<TaskCanceledException>()
     .Or<TimeoutException>()
     .Or<TimeoutRejectedException>()
     .WaitAndRetryAsync(
@@ -46,15 +41,11 @@ var retryPolicy = HttpPolicyExtensions
         onRetry: (outcome, timespan, retryCount, context) =>
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-
-            Console.WriteLine(
-                $"[Polly - Retry] Banka hata verdi. {retryCount}. deneme yapılıyor. Bekleme süresi: {timespan.TotalSeconds}sn"
-            );
-
+            Console.WriteLine($"[Polly - Retry] Banka hata verdi. {retryCount}. deneme yapılıyor. Bekleme süresi: {timespan.TotalSeconds}sn");
             Console.ResetColor();
         });
 
-        // Retry Policy (Amount > 1000)
+// Retry Policy (Amount > 1000)
 var slowRetryPolicy = HttpPolicyExtensions
     .HandleTransientHttpError()
     .Or<TaskCanceledException>()
@@ -66,13 +57,9 @@ var slowRetryPolicy = HttpPolicyExtensions
         onRetry: (outcome, timespan, retryCount, context) =>
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine(
-                $"[Polly - Retry (Slow)] Banka hata verdi. {retryCount}. deneme yapılıyor. Bekleme süresi: {timespan.TotalSeconds}sn"
-            );
+            Console.WriteLine($"[Polly - Retry (Slow)] Bankanın cevap vermesi uzun sürdü {retryCount}. deneme yapılıyor. Bekleme süresi: {timespan.TotalSeconds}sn");
             Console.ResetColor();
         });
-
-
 
 // Circuit Breaker Policy
 var circuitBreakerPolicy = HttpPolicyExtensions
@@ -84,25 +71,31 @@ var circuitBreakerPolicy = HttpPolicyExtensions
         handledEventsAllowedBeforeBreaking: 1,
         durationOfBreak: TimeSpan.FromSeconds(30),
 
-        onBreak: (outcome, timespan) =>
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
+         onBreak: (outcome, timespan) =>
+         {
+            CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = true;
+             CorePay.Application.Features.Payments.Commands.GlobalBankState.BreakEndTime = DateTime.Now.AddSeconds(30);
 
-            Console.WriteLine(
-                "[Polly - Circuit Breaker] SİGORTA ATTI! Banka tamamen çöktü. Devre 30 saniye boyunca AÇIK (Open). İstekler engellenecek."
-            );
-
+             Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine("[Polly - Circuit Breaker] SİGORTA ATTI! 30 saniyelik genel kilitlenme başladı.");
             Console.ResetColor();
-        },
-
+         },
         onReset: () =>
         {
+            // Ortak alanı aç
+            CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = false;
+
             Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("[Polly - Circuit Breaker] SİGORTA DÜZELDİ! Devre tekrar KAPALI (Closed).");
+            Console.ResetColor();
+        },
+        onHalfOpen: () =>
+        {
+            // 30 saniye dolunca izin ver
+            CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = false;
 
-            Console.WriteLine(
-                "[Polly - Circuit Breaker] SİGORTA DÜZELDİ! Devre tekrar KAPALI (Closed)."
-            );
-
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("[Polly - Circuit Breaker] SİGORTA YARI AÇIK! Bankayı test etmek için ilk istek bekleniyor...");
             Console.ResetColor();
         });
 
@@ -115,23 +108,33 @@ var slowCircuitBreakerPolicy = HttpPolicyExtensions
     .CircuitBreakerAsync(
         handledEventsAllowedBeforeBreaking: 1,
         durationOfBreak: TimeSpan.FromSeconds(30),
-        onBreak: (outcome, timespan) =>
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine(
-                "[Polly - Circuit Breaker (Slow)] SİGORTA ATTI! Devre 30 saniye boyunca AÇIK (Open)."
-            );
-            Console.ResetColor();
-        },
+onBreak: (outcome, timespan) =>
+{
+    CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = true;
+    CorePay.Application.Features.Payments.Commands.GlobalBankState.BreakEndTime = DateTime.Now.AddSeconds(30);
+
+    Console.ForegroundColor = ConsoleColor.Red;
+    Console.WriteLine("[Polly - Circuit Breaker (Slow)] SİGORTA ATTI! 30 saniyelik genel kilitlenme başladı.");
+    Console.ResetColor();
+},
         onReset: () =>
         {
+            // Ortak şalteri açıyoruz
+            CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = false;
+
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine(
-                "[Polly - Circuit Breaker (Slow)] SİGORTA DÜZELDİ! Devre tekrar KAPALI (Closed)."
-            );
+            Console.WriteLine("[Polly - Circuit Breaker (Slow)] SİGORTA DÜZELDİ! Devre tekrar KAPALI (Closed).");
+            Console.ResetColor();
+        },
+        onHalfOpen: () =>
+        {
+            // 30 saniye dolunca yavaş client için de şalteri indiriyoruz
+            CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = false;
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine("[Polly - Circuit Breaker (Slow)] SİGORTA YARI AÇIK! Bankayı test etmek için ilk istek bekleniyor...");
             Console.ResetColor();
         });
-
 
 // Timeout Policy
 var timeoutPolicy = Policy
@@ -140,75 +143,49 @@ var timeoutPolicy = Policy
         TimeoutStrategy.Optimistic
     );
 
-
+// Standart Dummy API isteği için
+builder.Services.AddHttpClient();
 
 // DummyBank Client
 builder.Services.AddHttpClient("DummyBankClient", client =>
 {
     client.BaseAddress = new Uri("http://localhost:5100/");
 })
-
-
 .AddPolicyHandler(circuitBreakerPolicy)
 .AddPolicyHandler(retryPolicy)
 .AddPolicyHandler(timeoutPolicy);
-
 
 // DummyBank Client (Amount > 1000)
 builder.Services.AddHttpClient("DummyBankSlowClient", client =>
 {
     client.BaseAddress = new Uri("http://localhost:5100/");
 })
-
 .AddPolicyHandler(slowCircuitBreakerPolicy)
 .AddPolicyHandler(slowRetryPolicy)
 .AddPolicyHandler(timeoutPolicy);
 
-
 var app = builder.Build();
 app.UseCors();
 
-
 // Global Exception Middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();
-
 app.UseHttpsRedirection();
 
-
-
-app.MapPost("/api/payments", async (
-    PaymentRequestDto dto,
-    IMediator mediator) =>
+app.MapPost("/api/payments", async (PaymentRequestDto dto, IMediator mediator) =>
 {
     var validationContext = new ValidationContext(dto);
-
     var validationResults = new List<ValidationResult>();
-
-    bool isValid = Validator.TryValidateObject(
-        dto,
-        validationContext,
-        validationResults,
-        true
-    );
-
+    bool isValid = Validator.TryValidateObject(dto, validationContext, validationResults, true);
 
     if (!isValid)
     {
         var firstError = validationResults.First().ErrorMessage;
-
-        return Results.BadRequest(new
-        {
-            message = firstError
-        });
+        return Results.BadRequest(new { message = firstError });
     }
 
-
     var command = new ProcessPaymentCommand(dto);
-
     var result = await mediator.Send(command);
-
     return Results.Ok(result);
 });
-
 
 app.Run();
