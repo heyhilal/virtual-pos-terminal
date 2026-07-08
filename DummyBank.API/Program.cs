@@ -12,7 +12,7 @@ app.MapPost("/bank/pay", async (PaymentRequest request) =>
 
     if (request.Amount > 1000)
     {
-        await Task.Delay(5000); 
+        await Task.Delay(15000); 
         return Results.Ok(new { Success = true, Message = "Gecikmeli Ödeme Başarılı", TransactionId = Guid.NewGuid() });
     }
 

@@ -25,15 +25,16 @@ public class PaymentRequestDto : IValidatableObject
     public decimal Amount { get; set; }
 
     public bool SaveCard { get; set; }
+public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+{
+    var luhnChecker = new LuhnCheckAttribute();
+    
+  
+    var result = luhnChecker.GetValidationResult(CardNumber, new ValidationContext(this) { MemberName = nameof(CardNumber) });
 
-    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    if (result != ValidationResult.Success && result != null)
     {
-        var luhnChecker = new LuhnCheckAttribute();
-        var result = luhnChecker.GetValidationResult(CardNumber, validationContext);
-
-        if (result != ValidationResult.Success && result != null)
-        {
-            yield return result;
-        }
+        yield return result;
     }
+}
 }

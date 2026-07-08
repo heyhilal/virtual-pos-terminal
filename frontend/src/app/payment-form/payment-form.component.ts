@@ -67,11 +67,12 @@ readonly KUPON_VERITABANI = [
 { kod: 'KARACUMA', oran: 0.80, durum: 'gecersiz', mesaj: 'Bu kupon kodu artık geçersizdir.' }
 ];
 
-urunler = [
-{ id: 1, isim: 'CorePay Entegrasyon Lisansı', fiyat: 2500, aciklama: 'Yıllık kurumsal sanal POS lisansı ve API erişim paketi.', adet: 1 },
-{ id: 2, isim: 'Yeni Nesil Android POS Cihazı', fiyat: 7500, aciklama: 'Temassız ödeme destekli, PCI-DSS uyumlu fiziki el terminali.', adet: 1 },
-{ id: 3, isim: 'AirPods Pro 2. Nesil Bluetooth Kulaklık', aciklama: 'Aktif gürültü engelleme ve adaptif şeffaf mod ile yüksek sadakatli ses deneyimi.', fiyat: 9500, adet: 1 },
-{ id: 4, isim: 'Apple Watch Series 9 Akıllı Saat', aciklama: 'Her anınızda yanınızda, gelişmiş sağlık sensörleri ve her zaman açık ekran.', fiyat: 14500, adet: 1 }
+// Dizinin tipini açıkça belirterek emoji alanını opsiyonel (?) yapıyoruz
+urunler: Array<{ id: number; isim: string; fiyat: number; aciklama?: string; adet: number; emoji?: string }> = [
+  { id: 1, isim: 'CorePay Entegrasyon Lisansı', fiyat: 900, aciklama: 'Yıllık kurumsal sanal POS lisansı ve API erişim paketi.', adet: 1 },
+  { id: 2, isim: 'Yeni Nesil Android POS Cihazı', fiyat: 1000, aciklama: 'Temassız ödeme destekli, PCI-DSS uyumlu fiziki el terminali.', adet: 1 },
+  { id: 3, isim: 'AirPods Pro 2. Nesil Bluetooth Kulaklık', aciklama: 'Aktif gürültü engelleme ve adaptif şeffaf mod ile yüksek sadakatli ses deneyimi.', fiyat: 1500, adet: 1 },
+  //{ id: 4, isim: 'Apple Watch Series 9 Akıllı Saat', aciklama: 'Her anınızda yanınızda, gelişmiş sağlık sensörleri ve her zaman açık ekran.', fiyat: 14500, adet: 1 }
 ];
 
 // true = ürünler/kategoriler sayfası gösterilsin, false = sepet ekranı gösterilsin
