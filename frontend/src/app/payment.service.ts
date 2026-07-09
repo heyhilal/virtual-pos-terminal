@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { delay } from 'rxjs/operators';
-import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 
 export interface PaymentRequest {
   cardholderName: string;
@@ -26,10 +25,14 @@ export class PaymentService {
 
   constructor(private readonly http: HttpClient) {}
 
-  processPayment(request: PaymentRequest): Observable<PaymentResponse> {
-    console.log("Şimdi gerçekten Backend'e istek gidiyor!", request);
+  //Dışarıdan idempotencyKey al
+  processPayment(request: PaymentRequest, idempotencyKey: string): Observable<PaymentResponse> {
+    console.log(`[Idempotency] Servise Gelen Sabit Anahtar: ${idempotencyKey}`);
+
+    const headers = new HttpHeaders({
+      'X-Idempotency-Key': idempotencyKey // Her seferinde değişmiyor
+    });
     
-   
-    return this.http.post<PaymentResponse>(this.baseUrl, request);
+    return this.http.post<PaymentResponse>(this.baseUrl, request, { headers });
   }
 }

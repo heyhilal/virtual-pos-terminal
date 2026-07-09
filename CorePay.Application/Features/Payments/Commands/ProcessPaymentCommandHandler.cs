@@ -27,18 +27,18 @@ public async Task<object> Handle(ProcessPaymentCommand request, CancellationToke
     {
         if (GlobalBankState.BreakEndTime.HasValue && DateTime.Now >= GlobalBankState.BreakEndTime.Value)
         {
-            // Sadece süre dolduysa izin ver
+            //süre dolduysa izin ver
             GlobalBankState.IsSystemBroken = false;
             GlobalBankState.BreakEndTime = null;
         }
         else
         {
-            // 30 saniye dolmadıysa engelle
+            //süre dolmadıysa engelle
             throw new BrokenCircuitException("Banka genelinde kilitlenme var. 30 saniyelik ceza süresi henüz dolmadı!");
         }
     }
 
-    // Tutara göre client seçimi 
+    // Tutara göre client 
     var clientName = request.PaymentData.Amount > 1000 ? "DummyBankSlowClient" : "DummyBankClient";
 
         var httpClient = _httpClientFactory.CreateClient(clientName);
@@ -69,7 +69,7 @@ public async Task<object> Handle(ProcessPaymentCommand request, CancellationToke
         }
         catch (BrokenCircuitException)
         {
-            throw new Exception("Banka servislerinde şu an kesinti yaşanıyor. Sistem kendini korumaya aldı. Lütfen 30 saniye sonra tekrar deneyiniz.");
+            throw new Exception("Banka servislerinde şu an kesinti yaşanıyor.Lütfen 30 saniye sonra tekrar deneyiniz.");
         }
         catch (Exception ex)
         {

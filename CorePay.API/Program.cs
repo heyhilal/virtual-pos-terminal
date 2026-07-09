@@ -8,6 +8,8 @@ using System.ComponentModel.DataAnnotations;
 using Polly;
 using Polly.Extensions.Http;
 using Polly.Timeout;
+using CorePay.API.Filters;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -70,7 +72,6 @@ var circuitBreakerPolicy = HttpPolicyExtensions
     .CircuitBreakerAsync(
         handledEventsAllowedBeforeBreaking: 1,
         durationOfBreak: TimeSpan.FromSeconds(30),
-
          onBreak: (outcome, timespan) =>
          {
             CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = true;
@@ -82,7 +83,6 @@ var circuitBreakerPolicy = HttpPolicyExtensions
          },
         onReset: () =>
         {
-            // Ortak alanı aç
             CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = false;
 
             Console.ForegroundColor = ConsoleColor.Green;
@@ -91,7 +91,6 @@ var circuitBreakerPolicy = HttpPolicyExtensions
         },
         onHalfOpen: () =>
         {
-            // 30 saniye dolunca izin ver
             CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = false;
 
             Console.ForegroundColor = ConsoleColor.Cyan;
@@ -108,18 +107,17 @@ var slowCircuitBreakerPolicy = HttpPolicyExtensions
     .CircuitBreakerAsync(
         handledEventsAllowedBeforeBreaking: 1,
         durationOfBreak: TimeSpan.FromSeconds(30),
-onBreak: (outcome, timespan) =>
-{
-    CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = true;
-    CorePay.Application.Features.Payments.Commands.GlobalBankState.BreakEndTime = DateTime.Now.AddSeconds(30);
+        onBreak: (outcome, timespan) =>
+        {
+           CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = true;
+           CorePay.Application.Features.Payments.Commands.GlobalBankState.BreakEndTime = DateTime.Now.AddSeconds(30);
 
-    Console.ForegroundColor = ConsoleColor.Red;
-    Console.WriteLine("[Polly - Circuit Breaker (Slow)] SİGORTA ATTI! 30 saniyelik genel kilitlenme başladı.");
-    Console.ResetColor();
-},
+           Console.ForegroundColor = ConsoleColor.Red;
+           Console.WriteLine("[Polly - Circuit Breaker (Slow)] SİGORTA ATTI! 30 saniyelik genel kilitlenme başladı.");
+           Console.ResetColor();
+        },
         onReset: () =>
         {
-            // Ortak şalteri açıyoruz
             CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = false;
 
             Console.ForegroundColor = ConsoleColor.Green;
@@ -128,7 +126,6 @@ onBreak: (outcome, timespan) =>
         },
         onHalfOpen: () =>
         {
-            // 30 saniye dolunca yavaş client için de şalteri indiriyoruz
             CorePay.Application.Features.Payments.Commands.GlobalBankState.IsSystemBroken = false;
 
             Console.ForegroundColor = ConsoleColor.Cyan;
@@ -164,13 +161,28 @@ builder.Services.AddHttpClient("DummyBankSlowClient", client =>
 .AddPolicyHandler(slowRetryPolicy)
 .AddPolicyHandler(timeoutPolicy);
 
+// Redis Singleton 
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    var configuration = ConfigurationOptions.Parse("localhost:6379", true);
+    configuration.AbortOnConnectFail = false;
+    return ConnectionMultiplexer.Connect(configuration);
+});
+
+// Filtre kaydı
+builder.Services.AddScoped<IdempotencyFilter>();
+
+
 var app = builder.Build();
+
+
 app.UseCors();
 
 // Global Exception Middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseHttpsRedirection();
 
+// Filtreleme
 app.MapPost("/api/payments", async (PaymentRequestDto dto, IMediator mediator) =>
 {
     var validationContext = new ValidationContext(dto);
@@ -186,6 +198,7 @@ app.MapPost("/api/payments", async (PaymentRequestDto dto, IMediator mediator) =
     var command = new ProcessPaymentCommand(dto);
     var result = await mediator.Send(command);
     return Results.Ok(result);
-});
+})
+.AddEndpointFilter<IdempotencyFilter>(); 
 
 app.Run();
