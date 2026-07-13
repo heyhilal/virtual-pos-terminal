@@ -10,8 +10,16 @@ using Polly.Extensions.Http;
 using Polly.Timeout;
 using CorePay.API.Filters;
 using StackExchange.Redis;
+using Serilog;
+using Serilog.Core;
+using CorePay.API;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context,configuration) =>
+    configuration.ReadFrom.Configuration(context.Configuration)
+                 .Destructure.With<SecurityLogDestructuringPolicy>()); 
+   
 
 builder.Services.AddCors(options =>
 {
@@ -172,7 +180,6 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
 // Filtre kaydı
 builder.Services.AddScoped<IdempotencyFilter>();
 
-
 var app = builder.Build();
 
 
@@ -185,6 +192,9 @@ app.UseHttpsRedirection();
 // Filtreleme
 app.MapPost("/api/payments", async (PaymentRequestDto dto, IMediator mediator) =>
 {
+    // Serilog ile gelen isteği loga yazıyoruz
+    Log.Information("Yeni bir ödeme isteği alındı: {@PaymentRequest}", dto);
+
     var validationContext = new ValidationContext(dto);
     var validationResults = new List<ValidationResult>();
     bool isValid = Validator.TryValidateObject(dto, validationContext, validationResults, true);
@@ -199,6 +209,6 @@ app.MapPost("/api/payments", async (PaymentRequestDto dto, IMediator mediator) =
     var result = await mediator.Send(command);
     return Results.Ok(result);
 })
-.AddEndpointFilter<IdempotencyFilter>(); 
+.AddEndpointFilter<IdempotencyFilter>();
 
 app.Run();

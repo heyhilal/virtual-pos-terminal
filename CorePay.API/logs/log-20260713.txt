@@ -1,0 +1,3 @@
+13-07-2026 13:45:57.728 +03:00  [WRN] Failed to determine the https port for redirect.
+13-07-2026 13:45:57.788 +03:00  [WRN] You do not have a valid license key for the Lucky Penny software MediatR. This is allowed for development and testing scenarios. If you are running in production you are required to have a licensed version. Please visit https://luckypennysoftware.com to obtain a valid license.
+13-07-2026 13:46:03.839 +03:00  [INF] Yeni bir ödeme isteği alındı: {"CardholderName":"Test User","CardNumber":"4532********0366","ExpMonth":12,"ExpYear":2026,"Amount":900,"SaveCard":false,"$type":"PaymentRequestDto"}

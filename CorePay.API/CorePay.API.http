@@ -4,3 +4,13 @@ GET {{CorePay.API_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+###
+POST {{CorePay.API_HostAddress}}/api/payments
+Content-Type: application/json
+
+{
+  "cardNumber": "4242123456781234",
+  "cvv": "123",
+  "amount": 1500,
+  "holderName": "Hilal Ozturk"
+}
