@@ -104,6 +104,8 @@ Infrastructure
 ### Backend
 
 ```bash
+cd DummyBank.API
+dotnet run
 cd CorePay.API
 dotnet run
 ```
@@ -113,7 +115,7 @@ dotnet run
 ```bash
 cd frontend
 npm install
-ng serve
+ng serve -o
 ```
 
 ---
