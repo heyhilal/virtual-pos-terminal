@@ -13,13 +13,18 @@ using StackExchange.Redis;
 using Serilog;
 using Serilog.Core;
 using CorePay.API;
+using CorePay.Application;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((context,configuration) =>
-    configuration.ReadFrom.Configuration(context.Configuration)
-                 .Destructure.With<SecurityLogDestructuringPolicy>()); 
-   
+string logPath = $"logs/log-{DateTime.Now:dd-MM-yyyy}.txt";
+
+builder.Host.UseSerilog((context, configuration) =>
+    configuration.WriteTo.File(logPath)
+
+                 .MinimumLevel.Information() 
+                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning) 
+                 .Destructure.With<SecurityLogDestructuringPolicy>());
 
 builder.Services.AddCors(options =>
 {
@@ -35,6 +40,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddScoped<IApplicationDbContext>(provider => 
+    provider.GetRequiredService<AppDbContext>());
+    
 // MediatR
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(ProcessPaymentCommand).Assembly));
@@ -211,4 +219,31 @@ app.MapPost("/api/payments", async (PaymentRequestDto dto, IMediator mediator) =
 })
 .AddEndpointFilter<IdempotencyFilter>();
 
+app.MapPost("/api/payments/{id}/cancel", async (string id, IMediator mediator) =>
+{
+    Log.Information("Ödeme iptal isteği alındı. İşlem ID: {TransactionId}", id);
+
+    if (string.IsNullOrWhiteSpace(id))
+    {
+        return Results.BadRequest(new { message = "Geçersiz işlem numarası (Transaction ID)." });
+    }
+
+    var command = new CancelPaymentCommand(id);
+    var result = await mediator.Send(command);
+
+    // 1. İptal işlemi başarılıysa 200 OK
+    if (result.Success)
+    {
+        return Results.Ok(result);
+    }
+
+    // 2. Eğer Handler'dan gelen mesaj "bulunamadı" veya "zaten iptal edilmiş" içeriyorsa 404 Not Found
+    if (result.Message.Contains("bulunamadı") || result.Message.Contains("zaten iptal edilmiş"))
+    {
+        return Results.NotFound(new { message = result.Message });
+    }
+
+    // 3. Diğer tüm iş mantığı hataları 400 Bad Request
+    return Results.BadRequest(new { message = result.Message });
+});
 app.Run();

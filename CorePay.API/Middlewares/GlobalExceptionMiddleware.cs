@@ -18,22 +18,20 @@ namespace CorePay.API.Middlewares
         {
             try
             {
-                //İsteği bir sonraki adıma (Controller'a) gönder
                 await _next(context);
             }
             catch (Exception ex)
             {
-                // Hata fırlatılırsa (throw new Exception) anında buraya düşsün
+                // Hata fırlatılırsa anında buraya düşsün
                 await HandleExceptionAsync(context, ex);
             }
         }
 
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
-            // Geri döneceğimiz verinin türü RFC 
             context.Response.ContentType = "application/problem+json";
             
-            // Hata durumunda HTTP Durum Kodunu 500 (Internal Server Error) olsun
+            // HTTP Durum Kodu 500 olsun
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
             // RFC 7807 standardındaki JSON nesnesi

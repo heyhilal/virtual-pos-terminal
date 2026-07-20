@@ -35,4 +35,18 @@ export class PaymentService {
     
     return this.http.post<PaymentResponse>(this.baseUrl, request, { headers });
   }
+
+
+  cancelPayment(transactionId: string): Observable<any> {
+    console.log(`[İptal İsteği] Servis tetiklendi. İşlem ID: ${transactionId}`);
+    
+    // İstek atılacak tam URL: http://localhost:5042/api/payments/{transactionId}/cancel
+    const url = `${this.baseUrl}/${transactionId}/cancel`;
+    
+    // POST isteği fırlatıyoruz
+    return this.http.post<any>(url, {});
+
+    
+  }
 }
+

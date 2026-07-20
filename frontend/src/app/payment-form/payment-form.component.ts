@@ -10,6 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { PaymentRequest, PaymentService } from '../payment.service';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 @Component({
   selector: 'app-payment-form',
@@ -25,16 +26,18 @@ import { PaymentRequest, PaymentService } from '../payment.service';
     MatCheckboxModule,
     MatButtonModule,
     MatIconModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatProgressSpinnerModule
   ],
   templateUrl: './payment-form.component.html',
   styleUrl: './payment-form.component.scss'
 })
 export class PaymentFormComponent implements OnInit {
+
   form: FormGroup;
   isSubmitting = false;
   isCvvFocused = false;
-  idempotencyKey: string= '';
+  idempotencyKey: string = '';
   @ViewChild('cvvInput') cvvInputEl!: ElementRef;
   @ViewChild('cardNumberInput') cardNumberInputEl!: ElementRef;
 
@@ -43,6 +46,13 @@ export class PaymentFormComponent implements OnInit {
   isSuccess: boolean = false;
   otomatikDonduMu: boolean = false;
 
+  isLoading = false;
+  loadingMessage = '';
+  validationError: string | null = null;
+  errorMessage: string | null = null;
+  successAmount = 0;
+  maskedCardNumber = '';
+
   aktifAdim: number = 1;
   hedefIsimUzunlugu: number = 3;
 
@@ -50,6 +60,22 @@ export class PaymentFormComponent implements OnInit {
   indirimOrani: number = 0;
   kuponHataMesaji: string = '';
   kuponBasariMesaji: string = '';
+
+  successTransactionId: string | null = null; 
+  isCancelled: boolean = false;               
+  isCancelLoading: boolean = false; // İptal süreci başladı mı kontrolü 
+
+  isErrorColor: boolean = false;
+  cancelErrorMessage: string | null = null;
+  isCancelErrorColor: boolean = false;
+
+
+   isCardFlipped: boolean = false;
+
+
+kartCevir(): void {
+  this.isCardFlipped = !this.isCardFlipped;
+}
 
   kayitliAdresler: any[] = [
     { id: 1, baslik: 'Ofis', sehir: 'İstanbul', ilce: 'Esenler', acikAdres: 'Çifte Havuzlar Mah. Eski Londra Asfaltı Cad. YTÜ Teknopark Teknoloji Geliştirme Bölgesi C2 Blok' }
@@ -101,7 +127,7 @@ export class PaymentFormComponent implements OnInit {
       emoji: '🏡',
       urunler: [
         { id: 401, isim: 'Aromaterapi Difüzör', fiyat: 549, aciklama: 'LED ışıklı, sessiz çalışan ultrasonik nem makinesi.', emoji: '🕯️' },
-        { id: 402, mt: 'Pamuklu Nevresim Takımı', fiyat: 899, aciklama: '%100 pamuk, çift kişilik yumuşak dokulu set.', emoji: '🛏️' },
+        { id: 402, isim: 'Pamuklu Nevresim Takımı', fiyat: 899, aciklama: '%100 pamuk, çift kişilik yumuşak dokulu set.', emoji: '🛏️' }, // 🌟 DÜZELTİLDİ: 'mt' yazan yer 'isim' yapıldı
         { id: 403, isim: 'Akıllı LED Ampul', fiyat: 299, aciklama: 'Uygulama üzerinden renk ve parlaklık kontrolü.', emoji: '💡' }
       ]
     },
@@ -128,7 +154,7 @@ export class PaymentFormComponent implements OnInit {
     { id: 'hizli', isim: 'Yurtiçi Kargo (Hızlı Teslimat)', ucret: 45, sure: '24 Saat İçinde' }
   ];
 
-  adresAlanlari = {
+  adresAlanlari: { sehir: string; ilce: string; acikAdres: string } = {
     sehir: '',
     ilce: '',
     acikAdres: ''
@@ -152,23 +178,17 @@ export class PaymentFormComponent implements OnInit {
   }
 
   ngOnInit() {
-
-    //Tek GUID üretilip sabitlendi
     this.idempotencyKey = crypto.randomUUID();
     console.log(`[Idempotency] Form için üretilen ve sabitlenen anahtar: ${this.idempotencyKey}`);
 
-
-    // Adres Defterini Yükleme
     const localAdresler = localStorage.getItem('kullaniciAdresDefteri');
     if (localAdresler) {
       this.kayitliAdresler = JSON.parse(localAdresler);
     }
-    // Kayıtlı kartlar
     const localKartlar = localStorage.getItem('kullaniciKartDefteri');
     if (localKartlar) {
       this.kayitliKartlar = JSON.parse(localKartlar);
     }
-
  
     this.secilenTutar = this.toplamTutarHesapla();
     this.form.patchValue({ amount: this.secilenTutar });
@@ -480,57 +500,136 @@ export class PaymentFormComponent implements OnInit {
     }
     return 'https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=150&q=80';
   }
+  
+  isValidLuhn(cardNumber: string): boolean {
+    let sum = 0;
+    let shouldDouble = false;
+    for (let i = cardNumber.length - 1; i >= 0; i--) {
+      let digit = parseInt(cardNumber.charAt(i));
+      if (shouldDouble) {
+        if ((digit *= 2) > 9) digit -= 9;
+      }
+      sum += digit;
+      shouldDouble = !shouldDouble;
+    }
+    return sum % 10 === 0;
+  }
 
   submit(): void {
-    this.snackBar.open('Ödeme işleminiz gerçekleştiriliyor, lütfen bekleyin...', '', { duration: 2000 });
-  
-    const expiryParts = (this.form.value.expiryDate || '').split('/');
+    this.isLoading = false; 
+    this.validationError = null;
+    this.errorMessage = null; // Önceki mesajı temizle
+    this.isErrorColor = false;
+
+    const rawCardNumber = (this.form.value.cardNumber || '').replace(/\s+/g, '').replace(/\D/g, '');
+    const cvv = (this.form.value.cvv || '').trim();
+    const expiryDate = (this.form.value.expiryDate || '').trim();
+
+    // Form Doğrulama Kontrolleri
+    if (!rawCardNumber || rawCardNumber.length !== 16 || isNaN(Number(rawCardNumber)) || !this.isValidLuhn(rawCardNumber)) {
+      this.validationError = "Geçersiz Kart Formatı veya Bilgisi!"; 
+      this.form.markAllAsTouched();
+      return;
+    }
+    if (!cvv || cvv.length !== 3 || isNaN(Number(cvv))) {
+      this.validationError = "Geçersiz Kart Formatı veya Bilgisi!";
+      this.form.markAllAsTouched();
+      return;
+    }
+    const expiryPattern = /^(0[1-9]|1[0-2])\/?([0-9]{2})$/;
+    if (!expiryPattern.test(expiryDate)) {
+      this.validationError = "Geçersiz Kart Formatı veya Bilgisi!";
+      this.form.markAllAsTouched();
+      return;
+    }
+    if (this.form.invalid) {
+      this.validationError = "Lütfen formdaki alanları doğru formatta doldurunuz.";
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    if (!this.idempotencyKey) {
+      this.idempotencyKey = crypto.randomUUID();
+    }
+
+    this.errorMessage = "🔄 Ödemeniz tamamlanıyor, lütfen bekleyin...";
+    this.isErrorColor = false;
+    this.isLoading = true;
+
+    const expiryParts = expiryDate.split('/');
     const month = expiryParts[0] ? Number(expiryParts[0]) : 0;
     const year = expiryParts[1] ? Number('20' + expiryParts[1]) : 0;
-  
+
     const request: PaymentRequest = {
       cardholderName: this.form.value.cardholderName,
-      cardNumber: (this.form.value.cardNumber || '').replace(/\D/g, ''),
+      cardNumber: rawCardNumber,
       expMonth: month,
       expYear: year,
-      cvv: this.form.value.cvv,
+      cvv: cvv,
       amount: Number(this.secilenTutar),
       saveCard: !!this.form.value.saveCard
     };
-  
-    this.isSubmitting = true;
-    this.form.disable({ emitEvent: false });
 
-    //Butonu 1 sn kilitle sonra aç 
-    setTimeout(() => {
-      this.isSubmitting = false;
-      this.form.enable({ emitEvent: false });
-    }, 1000);
-  
+    this.isSubmitting = false;
+
     this.paymentService.processPayment(request, this.idempotencyKey).subscribe({
       next: (res) => {
-        if (this.form.value.saveCard) {
-          this.yeniKartiKaydet();
-        }
+        this.isLoading = false;
+        this.errorMessage = null; 
         
-        this.isSubmitting = false;
-        this.form.enable({ emitEvent: false });
-        this.snackBar.dismiss();
-  
-        this.isModalOpen = false;
-        this.urunler = [];
+        if (this.form.value.saveCard) { this.yeniKartiKaydet(); }
+        this.successAmount = Number(this.secilenTutar);
+        this.maskedCardNumber = `**** **** **** ${rawCardNumber.slice(-4)}`;
+        this.successTransactionId = (res as any)?.id || (res as any)?.transactionId || null;
+
+        this.form.reset(); 
+        Object.keys(this.form.controls).forEach(key => {
+          const control = this.form.get(key);
+          if (control) { control.setValue(''); control.setErrors(null); }
+        });
+
+        this.isCvvFocused = false; 
+        if (this.adresAlanlari) { this.adresAlanlari = { sehir: '', ilce: '', acikAdres: '' }; }
+        if ('adresBasligi' in this) { this.adresBasligi = ''; }
+        this.secilenAdres = null;
+
+        const kayitliKartlarYedek = localStorage.getItem('kullaniciKartDefteri');
+        const kayitliAdreslerYedek = localStorage.getItem('kullaniciAdresDefteri');
+        localStorage.clear();   
+        sessionStorage.clear(); 
+        if (kayitliKartlarYedek) { localStorage.setItem('kullaniciKartDefteri', kayitliKartlarYedek); }
+        if (kayitliAdreslerYedek) { localStorage.setItem('kullaniciAdresDefteri', kayitliAdreslerYedek); }
+        
+        this.urunler = [];                    
+        this.validationError = null;          
+        this.idempotencyKey = '';             
+        this.isSuccess = true;                
+        this.isModalOpen = false;             
         this.aktifAdim = 1;
-        this.urunlerSayfasiAktif = true;
-        this.isSuccess = true;
-        //Ödeme bitince sonraki sipariş için key yenilensim
-        this.idempotencyKey = crypto.randomUUID();
+        this.urunlerSayfasiAktif = true;      
       },
       error: (err) => {
-        this.isSubmitting = false;
-        this.form.enable({ emitEvent: false });
+        this.isLoading = false; 
+        const statusCode = err?.status;
         
-        const message = err?.error?.message || err?.message || 'Ödeme sırasında bir hata oluştu.';
-        this.snackBar.open(message, 'Kapat', { duration: 4000 });
+        if (statusCode === 409) {
+          let serverMessage = err?.error?.message || err?.error || "Bu işlem zaten gerçekleştiriliyor.";
+          serverMessage = serverMessage.replace(/hata:/gi, '').replace(/hata/gi, '').trim();
+          
+       
+          this.errorMessage = `❌ ${serverMessage}`;
+          this.isErrorColor = true; 
+        } 
+        else if (statusCode === 400) {
+          this.errorMessage = null; 
+          this.isErrorColor = false;
+          const serverMessage = err?.error?.message || err?.error;
+          this.validationError = serverMessage || "Geçersiz Kart Formatı veya Bilgisi!";
+        }
+        else {
+          this.errorMessage = "Sistemsel bir hata oluştu.";
+          this.isErrorColor = true; 
+        }
       }
     });
   }
@@ -566,5 +665,77 @@ export class PaymentFormComponent implements OnInit {
 
   urunlerToplaminiHesapla(): number {
     return this.urunler.reduce((toplam, urun) => toplam + (urun.fiyat * urun.adet), 0);
+  }
+
+  // İşlemin halihazırda başlatılıp başlatılmadığını takip etmek için bir kilit tanımlıyoruz
+  isCancelRequestPending: boolean = false;
+
+  islemiIptalEt(): void {
+    console.log('İptal butonuna tıklandı!');
+
+    if (!this.successTransactionId) {
+      this.cancelErrorMessage = "❌ İptal edilecek geçerli bir işlem bulunamadı.";
+      this.isCancelErrorColor = true;
+      return;
+    }
+
+    // ilk tıklanma
+    if (!this.isCancelRequestPending) {
+      this.isCancelRequestPending = true; 
+      
+      this.cancelErrorMessage = "Ödemeniz iptal ediliyor, lütfen bekleyin...";
+      this.isCancelErrorColor = false;
+      this.isCancelLoading = true;
+
+      // İlk istek test amaçlı artık 5 saniye sonra gönderilecek
+      setTimeout(() => {
+     if (this.isCancelled) return;
+
+        this.paymentService.cancelPayment(this.successTransactionId!).subscribe({
+          next: (response: any) => {
+            this.isCancelLoading = false;
+            this.isCancelled = true; 
+            this.isCancelRequestPending = false;
+            this.cancelErrorMessage = null; 
+      
+          },
+          error: (err: any) => {
+            this.isCancelLoading = false;
+            this.isCancelRequestPending = false;
+            console.log('İlk istekte hata yakalandı!', err);
+            this.handleCancelError(err);
+          }
+        });
+      }, 5000); 
+    } 
+    // tekrar tıklanırsa
+    else {
+      console.log('İkinci tıklama algılandı! Yazı süreç bitene kadar sabit kalacak.');
+      
+   this.cancelErrorMessage = "⚠️ Bu işlem zaten iptal ediliyor, lütfen sürecin tamamlanmasını bekleyiniz...";
+      this.isCancelErrorColor = true; 
+
+    }
+  }
+
+  // Hata mesajlarını yöneten fonksiyonumuz
+  private handleCancelError(err: any): void {
+    if (err?.status === 404) {
+      let serverMessage = err?.error?.message || err?.error || "Bu işlem daha önce zaten iptal edilmiş.";
+      if (typeof serverMessage === 'string') {
+        serverMessage = serverMessage.replace(/hata:/gi, '').replace(/hata/gi, '').trim();
+      }
+      this.cancelErrorMessage = `❌ ${serverMessage}`;
+      this.isCancelErrorColor = true; 
+    } 
+    else if (err?.status === 400) {
+      const serverMessage = err?.error?.message || err?.error || "Sadece aynı gün içindeki işlemler iptal edilebilir.";
+      this.cancelErrorMessage = `❌ ${serverMessage}`;
+      this.isCancelErrorColor = true;
+    }
+    else {
+      this.cancelErrorMessage = "İptal işlemi gerçekleştirilemedi.";
+      this.isCancelErrorColor = true;
+    }
   }
 }

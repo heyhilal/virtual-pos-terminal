@@ -5,10 +5,10 @@ export const idempotencyInterceptor: HttpInterceptorFn = (req, next) => {
   if (req.headers.has('X-Idempotency-Key')) {
     const existingKey = req.headers.get('X-Idempotency-Key');
     console.log(`[Idempotency Interceptor] Bileşenden gelen mevcut anahtar korundu: ${existingKey}`);
-    return next(req); // İsteği klonlamadan, olduğu gibi gönderiyoruz
+    return next(req);
   }
 
-  // 2. Eğer istekte bu header hiç yoksa (örneğin normal bir get isteği vb.), o zaman yeni bir tane üretiyoruz
+  // 2. Eğer istekte bu header hiç yoksa o zaman yeni bir tane üretiyoruz
   const idempotencyKey = 'idempotency:' + generateUUID();
 
   const clonedRequest = req.clone({
@@ -20,7 +20,7 @@ export const idempotencyInterceptor: HttpInterceptorFn = (req, next) => {
   return next(clonedRequest);
 };
 
-// Benzersiz UUID v4 üreten yardımcı fonksiyon (aynen kalıyor)
+// Benzersiz UUID v4 üreten yardımcı fonksiyon
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
